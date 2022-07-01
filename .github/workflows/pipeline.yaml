@@ -1,0 +1,64 @@
+name: Pipeline
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'feature**'
+env:
+  bucketname: chenx16-bootcamp-2022-bucket
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: npm ci
+      - run: npm test
+
+  deploy-feature:
+    environment: dev
+    if: startsWith(github.ref, 'refs/heads/feature')
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      stage: dev
+      service: ${{github.ref_name}}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Assume the testing pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::008604820107:role/github-actions-role-Role-WYETSPHR775E
+          role-session-name: feature-deployment
+
+      - run: npm ci
+      - run: npm run deploy
+
+  deploy-dev:
+    environment: dev
+    if: github.ref == 'refs/heads/main'
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      stage: dev
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Assume the testing pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::008604820107:role/github-actions-role-Role-WYETSPHR775E
+          role-session-name: dev-deployment
+
+      - run: npm ci
+      - run: npm run deploy
